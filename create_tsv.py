@@ -28,7 +28,7 @@ with open('found_urls.json', 'r') as file:
     data = json.load(file)
 
 # write to tsv
-with open('genre_to_lyrics.tsv', 'w', encoding='utf-8') as tsv_file:
+with open('unfiltered_genre_to_lyrics.tsv', 'w', encoding='utf-8') as tsv_file:
     # row -> Genre URL Lyrics
     tsv_file.write('Genre\tTitle\tURL\tLyrics\n')
     
