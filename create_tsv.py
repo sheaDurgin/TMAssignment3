@@ -3,6 +3,9 @@ import requests
 from bs4 import BeautifulSoup
 import re
 from tqdm import tqdm
+import random
+
+random.seed(42)
 
 def get_lyrics(soup):
     lyrics = soup.find('pre', id='lyric-body-text')
@@ -27,15 +30,17 @@ with open('found_urls.json', 'r') as file:
 # write to tsv
 with open('genre_to_lyrics.tsv', 'w', encoding='utf-8') as tsv_file:
     # row -> Genre URL Lyrics
-    tsv_file.write('Genre\tURL\tLyrics\n')
+    tsv_file.write('Genre\tTitle\tURL\tLyrics\n')
     
     # get smallest genre, and use this to truncate others
     min_len = min(len(url_and_titles) for url_and_titles in data.values())
 
     # loop through all urls for each genre
     for genre, url_and_titles in tqdm(data.items(), desc='Genres'):
+        random.shuffle(url_and_titles)
         for url_and_title in tqdm(url_and_titles[:min_len], desc='URLs', total=min_len):
-            url = url_and_title[0]
+        # for url_and_title in tqdm(url_and_titles, desc='URLs', total=len(url_and_titles)):
+            url, title = url_and_title
             response = requests.get(url, headers=headers)
             soup = BeautifulSoup(response.content, 'html.parser')
 
@@ -49,4 +54,4 @@ with open('genre_to_lyrics.tsv', 'w', encoding='utf-8') as tsv_file:
                 genre = fix_genres[genre]
 
             # write to tsv
-            tsv_file.write(f"{genre.lower()}\t{url}\t{lyrics}\n")
+            tsv_file.write(f"{genre.lower()}\t{title}\t{url}\t{lyrics}\n")
