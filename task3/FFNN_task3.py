@@ -12,6 +12,8 @@ class FFNN(nn.Module):
         self.relu = nn.ReLU()
         self.fc2 = nn.Linear(hidden_size, num_classes)
 
+        torch.manual_seed(42)
+
 
     def forward(self, x):
         out = self.fc1(x)
