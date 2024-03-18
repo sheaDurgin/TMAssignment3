@@ -5,6 +5,7 @@ import ssl
 import torch
 import os
 import re
+import matplotlib.pyplot as plt
 import torch.nn as nn
 import torch.optim as optim
 import random
@@ -44,6 +45,38 @@ def read_tsv_file(file_path):
         
         
         return genre_to_lyrics
+
+
+
+def get_test_data(dir_path):
+    genre_to_songs = {}
+    for genre in os.listdir(dir_path):
+        genre_dir_path = os.path.join(dir_path, genre)
+        if os.path.isdir(genre_dir_path):
+            genre = genre.lower()
+
+            files = os.listdir(genre_dir_path) 
+            song_paths = [os.path.join(genre_dir_path, file) for file in files]
+            genre_to_songs[genre] = []
+            for song in song_paths:
+                with open(song, 'r') as f:
+                    text = f.read()
+                preprocessed_lyrics = preprocess_lyrics(text)
+                lyric_embeddings = generate_lyric_embeddings(preprocessed_lyrics)
+                genre_to_songs[genre].append(lyric_embeddings)
+    
+    X_test = []
+    y_test = []
+    for genre, songs in genre_to_songs.items():
+        X_test.extend(songs)
+        y_test.extend([genre] * len(songs))
+
+    # Encode labels
+    label_encoder = LabelEncoder()
+    y_test_encoded = label_encoder.fit_transform(y_test)
+    
+    return X_test, y_test_encoded
+
 
 # 90 training 10 validation  
 def split_data(data):
@@ -89,19 +122,37 @@ def generate_lyric_embeddings(preprocessed_lyrics):
     return avg_word_embedding
 
 
-def train_model(train_loader, model, criterion, optimizer, scheduler, num_epochs):
+def train_model(train_loader, val_loader, model, criterion, optimizer, scheduler, num_epochs):
+    train_losses = []
+    val_losses = []
+    accuracy_per_epoch = []
+
     for epoch in range(num_epochs):
-        model.train()  # Set the model to training mode
+        model.train()  
+        running_train_loss = 0.0
+
         for inputs, labels in train_loader:
             optimizer.zero_grad()
             outputs = model(inputs)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
+            
+            running_train_loss += loss.item() * inputs.size(0)
 
         scheduler.step()  
 
-    return model
+
+        epoch_train_loss = running_train_loss / len(train_loader.dataset)
+        train_losses.append(epoch_train_loss)
+
+        # Don't need the accuracy here 
+        accuracy, epoch_val_loss = evaluate_model(val_loader, model, criterion)
+        val_losses.append(epoch_val_loss)
+        accuracy_per_epoch.append(accuracy)
+
+    return model, train_losses, val_losses, accuracy_per_epoch
+
 
 # For both testing on validation and testing data 
 def train_and_test(train_loader, test_loader, input_size, num_classes, hidden_size, num_epochs, learning_rate):
@@ -116,56 +167,34 @@ def train_and_test(train_loader, test_loader, input_size, num_classes, hidden_si
 
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
 
-    trained_model = train_model(train_loader, model, criterion, optimizer, scheduler, num_epochs)
-    accuracy = evaluate_model(test_loader, trained_model)
+    trained_model, train_losses, val_losses, accuracy_per_epoch = train_model(train_loader, test_loader, model, criterion, optimizer, scheduler, num_epochs)
+    # don't need the epoch val loss here
+    accuracy, _ = evaluate_model(test_loader, trained_model, criterion)
     
-    return accuracy
+    return accuracy, train_losses, val_losses, accuracy_per_epoch
 
 
-def get_test_data(dir_path):
-    genre_to_songs = {}
-    for genre in os.listdir(dir_path):
-        genre_dir_path = os.path.join(dir_path, genre)
-        if os.path.isdir(genre_dir_path):
-            genre = genre.lower()
-
-            files = os.listdir(genre_dir_path) 
-            song_paths = [os.path.join(genre_dir_path, file) for file in files]
-            genre_to_songs[genre] = []
-            for song in song_paths:
-                with open(song, 'r') as f:
-                    text = f.read()
-                preprocessed_lyrics = preprocess_lyrics(text)
-                lyric_embeddings = generate_lyric_embeddings(preprocessed_lyrics)
-                genre_to_songs[genre].append(lyric_embeddings)
-    
-    X_test = []
-    y_test = []
-    for genre, songs in genre_to_songs.items():
-        X_test.extend(songs)
-        y_test.extend([genre] * len(songs))
-
-    # Encode labels
-    label_encoder = LabelEncoder()
-    y_test_encoded = label_encoder.fit_transform(y_test)
-    
-    return X_test, y_test_encoded
-
-
-def evaluate_model(data_loader, model):
+# Function to evaluate the model on validation data
+def evaluate_model(data_loader, model, criterion):
     model.eval()
+    running_val_loss = 0.0
     correct = 0
     total = 0
+
     with torch.no_grad():
         for inputs, labels in data_loader:
             outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            running_val_loss += loss.item() * inputs.size(0)
+            
             _, predicted = torch.max(outputs, 1)
             correct += (predicted == labels).sum().item()
             total += len(labels)  
 
         accuracy = correct / total
+        epoch_val_loss = running_val_loss / len(data_loader.dataset)
     
-    return accuracy
+    return accuracy, epoch_val_loss
     
 # Permute over hyperparameter setups to determine best combination 
 def tune_hyperparameters(train_loader, val_loader, input_size, num_classes, param_grid):
@@ -214,9 +243,12 @@ def main():
     test_dataset = TensorDataset(torch.FloatTensor(np.array(X_test)), torch.LongTensor(y_test))
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
-    accuracy = train_and_test(train_loader, test_loader, input_size, num_classes, 128, 20, 0.01)
+    accuracy, train_losses, val_losses, accuracy_per_epoch = train_and_test(train_loader, val_loader, input_size, num_classes, 128, 20, 0.01)
 
-    print(accuracy)
+    plot_losses(train_losses, val_losses)
+
+    print(accuracy_per_epoch)
+ 
     # Hyperparamters to test
     #param_grid = {
     # 'learning_rate': [0.001, 0.01, 0.1],
@@ -234,9 +266,15 @@ def main():
     
     # accuracy = train_and_validate(train_loader, val_loader, input_size, num_classes, 128, 20, 0.01)
 
-    
-
-
+def plot_losses(train_losses, val_losses):
+    epochs = range(1, len(train_losses) + 1)
+    plt.plot(epochs, train_losses, label='Training Loss')
+    plt.plot(epochs, val_losses, label='Validation Loss')
+    plt.xlabel('Epoch')
+    plt.ylabel('Loss')
+    plt.title('Training and Validation Loss vs. Epoch')
+    plt.legend()
+    plt.show()
 
 # :-) 
 if __name__ == '__main__':
