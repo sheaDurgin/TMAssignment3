@@ -1,14 +1,13 @@
 import torch
 import torch.nn as nn
+from torch import optim
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import LabelEncoder
 from torch.utils.data import TensorDataset, DataLoader
 
-from torch import optim
 from tqdm import tqdm
-
 import os
 import re
 
@@ -161,8 +160,11 @@ def train_model(model, train_dataloader, validation_dataloader):
     plt.plot(accuracy_epoch_valid.keys(), accuracy_epoch_valid.values(), 'y--', label='Validation Accuracy')
     plt.xlabel('Epoch')
     plt.ylabel('Loss / Accuracy')
+    plt.savefig('Task2_epoch_diagram.pdf')
     plt.legend()
     plt.show()
+
+    
 
 def test_model(model, test_dataloader):
     model.eval()
