@@ -19,13 +19,9 @@ batch_size = 128
 num_epochs = 100
 learning_rate = 0.001
 
-
 def extract_features(lyrics):
     num_words = len(lyrics.split())
     unique_words = len(set(lyrics.split()))
-    pronouns = ['I', 'you', 'he', 'she', 'it', 'we', 'they']
-    pronoun_count = sum(lyrics.count(p) for p in pronouns)
-    avg_word_length = sum(len(word) for word in lyrics.split()) / num_words  
     return [num_words, unique_words]
 
 def get_train_data(file_path):
@@ -160,11 +156,10 @@ def train_model(model, train_dataloader, validation_dataloader):
     plt.plot(accuracy_epoch_valid.keys(), accuracy_epoch_valid.values(), 'y--', label='Validation Accuracy')
     plt.xlabel('Epoch')
     plt.ylabel('Loss / Accuracy')
-    plt.savefig('Task2_epoch_diagram.pdf')
+    #plt.savefig('Task2_epoch_diagram.pdf')
     plt.legend()
     plt.show()
 
-    
 
 def test_model(model, test_dataloader):
     model.eval()
@@ -191,7 +186,6 @@ def calculate_f1(y_true, y_pred, label_encoder):
     # Transform into string
     decoded_true_labels = label_encoder.inverse_transform(y_true)
     decoded_pred_labels = label_encoder.inverse_transform(y_pred)
-    
     
     f1 = f1_score(decoded_true_labels, decoded_pred_labels, average='macro', zero_division=0)
     
