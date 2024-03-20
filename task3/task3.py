@@ -1,6 +1,7 @@
 import csv
 import nltk
 import certifi
+import pandas as pd
 import ssl
 import torch
 import os
@@ -17,6 +18,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.model_selection import ParameterGrid
 from sklearn.preprocessing import LabelEncoder
 from FFNN_task3 import FFNN
+from sklearn.metrics import f1_score, classification_report
+from tabulate import tabulate
 import gensim.downloader as api
 import string
 
@@ -45,7 +48,6 @@ def read_tsv_file(file_path):
         
         
         return genre_to_lyrics
-
 
 
 def get_test_data(dir_path):
@@ -88,6 +90,7 @@ def split_data(data):
 
     return X_train, X_val, y_train, y_val 
 
+
 # Remove stop words, punctuation, and tokenize
 def preprocess_lyrics(lyrics):
     
@@ -122,7 +125,9 @@ def generate_lyric_embeddings(preprocessed_lyrics):
     return avg_word_embedding
 
 
-def train_model(train_loader, val_loader, model, criterion, optimizer, scheduler, num_epochs):
+# Takes in val_loader or trainloader (val_loader for when val loss per epoch 
+# needs to be calculated)
+def train_model(train_loader, loader, model, criterion, optimizer, scheduler, num_epochs):
     train_losses = []
     val_losses = []
     accuracy_per_epoch = []
@@ -146,12 +151,11 @@ def train_model(train_loader, val_loader, model, criterion, optimizer, scheduler
         epoch_train_loss = running_train_loss / len(train_loader.dataset)
         train_losses.append(epoch_train_loss)
 
-        # Don't need the accuracy here 
-        accuracy, epoch_val_loss = evaluate_model(val_loader, model, criterion)
+        accuracy, epoch_val_loss, y_pred, y_true = evaluate_model(loader, model, criterion)
         val_losses.append(epoch_val_loss)
         accuracy_per_epoch.append(accuracy)
 
-    return model, train_losses, val_losses, accuracy_per_epoch
+    return model, train_losses, val_losses, accuracy_per_epoch, y_pred, y_true
 
 
 # For both testing on validation and testing data 
@@ -167,11 +171,12 @@ def train_and_test(train_loader, test_loader, input_size, num_classes, hidden_si
 
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
 
-    trained_model, train_losses, val_losses, accuracy_per_epoch = train_model(train_loader, test_loader, model, criterion, optimizer, scheduler, num_epochs)
-    # don't need the epoch val loss here
-    accuracy, _ = evaluate_model(test_loader, trained_model, criterion)
+    trained_model, train_losses, val_losses, accuracy_per_epoch, y_pred, y_true = train_model(train_loader, test_loader, model, criterion, optimizer, scheduler, num_epochs)
     
-    return accuracy, train_losses, val_losses, accuracy_per_epoch
+    # Don't need other return values here
+    accuracy, _, _, _= evaluate_model(test_loader, trained_model, criterion)
+    
+    return accuracy, train_losses, val_losses, accuracy_per_epoch, y_pred, y_true
 
 
 # Function to evaluate the model on validation data
@@ -180,6 +185,9 @@ def evaluate_model(data_loader, model, criterion):
     running_val_loss = 0.0
     correct = 0
     total = 0
+    # For f1 scores
+    y_true = []
+    y_pred = []
 
     with torch.no_grad():
         for inputs, labels in data_loader:
@@ -190,12 +198,16 @@ def evaluate_model(data_loader, model, criterion):
             _, predicted = torch.max(outputs, 1)
             correct += (predicted == labels).sum().item()
             total += len(labels)  
+            y_true.extend(labels.numpy())
+            y_pred.extend(predicted.numpy())
 
         accuracy = correct / total
         epoch_val_loss = running_val_loss / len(data_loader.dataset)
+
     
-    return accuracy, epoch_val_loss
+    return accuracy, epoch_val_loss, y_pred, y_true
     
+
 # Permute over hyperparameter setups to determine best combination 
 def tune_hyperparameters(train_loader, val_loader, input_size, num_classes, param_grid):
     seed_value = 42
@@ -234,6 +246,7 @@ def main():
     y_val_encoded = label_encoder.fit_transform(y_val)
     X_test, y_test = get_test_data("Test Songs")
 
+    # Loaders
     train_dataset = TensorDataset(torch.FloatTensor(np.array(X_train)), torch.LongTensor(y_train_encoded))
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
     
@@ -243,12 +256,34 @@ def main():
     test_dataset = TensorDataset(torch.FloatTensor(np.array(X_test)), torch.LongTensor(y_test))
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
-    accuracy, train_losses, val_losses, accuracy_per_epoch = train_and_test(train_loader, val_loader, input_size, num_classes, 128, 20, 0.01)
+    # Validation Data - no need for predicted/true lables here
+    #val_accuracy, train_losses, val_losses, accuracy_per_epoch, _, _ = train_and_test(train_loader, val_loader, input_size, num_classes, 128, 20, 0.01) 
+    
+    # Test Data - 3 parameters not relevent here for using testing data
+    test_accuracy, _, _, _, y_pred, y_true = train_and_test(train_loader, test_loader, input_size, num_classes, 128, 20, 0.01)
 
-    plot_losses(train_losses, val_losses)
+    # Convert numerical notation back to string notation  
+    y_pred_genre_names = label_encoder.inverse_transform(y_pred)
+    y_true_genre_names = label_encoder.inverse_transform(y_true)
 
-    print(accuracy_per_epoch)
- 
+    report = classification_report(y_true_genre_names, y_pred_genre_names, output_dict=True, zero_division=0)
+
+    genre_f1_scores = {}
+    genres = ["blues", "country", "metal", "pop", "rap", "rock"]
+    for genre in genres:
+        genre_f1_scores[genre] = report[genre]['f1-score']
+
+    overall_f1_score = report['weighted avg']['f1-score']
+
+    table_data = [(genre, f1_score) for genre, f1_score in genre_f1_scores.items()]
+    table = tabulate(table_data, headers=['Genre', 'F1 Score'], tablefmt='grid')
+    print(f'\nOverall f1 score: {overall_f1_score}\n')
+    print(f'F1 Scores Per Genre')
+    print(table)
+
+    # Train loss validation loss per epoch diagram
+    #plot_losses(train_losses, val_losses)
+
     # Hyperparamters to test
     #param_grid = {
     # 'learning_rate': [0.001, 0.01, 0.1],
