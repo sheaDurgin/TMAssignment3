@@ -156,8 +156,8 @@ def train_model(model, train_dataloader, validation_dataloader):
     plt.plot(accuracy_epoch_valid.keys(), accuracy_epoch_valid.values(), 'y--', label='Validation Accuracy')
     plt.xlabel('Epoch')
     plt.ylabel('Loss / Accuracy')
-    #plt.savefig('Task2_epoch_diagram.pdf')
     plt.legend()
+    plt.savefig('Task2_epoch_diagram.pdf')
     plt.show()
 
 
