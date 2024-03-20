@@ -179,7 +179,7 @@ def train_and_test(train_loader, test_loader, input_size, num_classes, hidden_si
     return accuracy, train_losses, val_losses, accuracy_per_epoch, y_pred, y_true
 
 
-# Function to evaluate the model on validation data
+# Function to see how model preforms with predictions
 def evaluate_model(data_loader, model, criterion):
     model.eval()
     running_val_loss = 0.0
@@ -255,11 +255,11 @@ def main():
 
     test_dataset = TensorDataset(torch.FloatTensor(np.array(X_test)), torch.LongTensor(y_test))
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
-
-    # Validation Data - no need for predicted/true lables here
-    #val_accuracy, train_losses, val_losses, accuracy_per_epoch, _, _ = train_and_test(train_loader, val_loader, input_size, num_classes, 128, 20, 0.01) 
     
-    # Test Data - 3 parameters not relevent here for using testing data
+    # Run on Validation Data - no need for predicted/true lables here
+    val_accuracy, train_losses, val_losses, accuracy_per_epoch, _, _ = train_and_test(train_loader, val_loader, input_size, num_classes, 128, 20, 0.01) 
+    
+    # Run on Test Data - 3 parameters not relevent here for using testing data
     test_accuracy, _, _, _, y_pred, y_true = train_and_test(train_loader, test_loader, input_size, num_classes, 128, 20, 0.01)
 
     # Convert numerical notation back to string notation  
@@ -282,7 +282,7 @@ def main():
     print(table)
 
     # Train loss validation loss per epoch diagram
-    #plot_losses(train_losses, val_losses)
+    plot_losses(train_losses, val_losses)
 
     # Hyperparamters to test
     #param_grid = {
