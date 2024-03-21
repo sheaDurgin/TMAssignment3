@@ -20,21 +20,28 @@ import gensim.downloader as api
 import string
 
 class FFNN(nn.Module):
-    def __init__(self, input_size, hidden_size, num_classes):
+    def __init__(self, input_size, hidden_size, num_classes, p=0.5):
         super(FFNN, self).__init__()
         self.fc1 = nn.Linear(input_size, hidden_size)
-        self.relu = nn.ReLU()
-        self.fc2 = nn.Linear(hidden_size, num_classes)
+        self.relu1 = nn.ReLU()
+        self.dropout1 = nn.Dropout(p=p)
+        self.fc2 = nn.Linear(hidden_size, hidden_size//2)
+        self.relu2 = nn.ReLU()
+        self.dropout2 = nn.Dropout(p=p)
+        self.fc3 = nn.Linear(hidden_size//2, num_classes)
 
         torch.manual_seed(42)
 
-
     def forward(self, x):
         out = self.fc1(x)
-        out = self.relu(out)
+        out = self.relu1(out)
+        out = self.dropout1(out)
         out = self.fc2(out)
+        out = self.relu2(out)
+        out = self.dropout2(out)
+        out = self.fc3(out)
         return out
-    
+
 nltk.download('punkt')
 nltk.download('stopwords')
 word2vec_model = api.load('word2vec-google-news-300')
@@ -50,7 +57,6 @@ def get_train_data(file_path):
 
 def get_test_data(file_path):
     df = pd.read_csv(file_path, sep='\t')
-    df['lyric'] = df['lyric'].str.lower().str.replace('[^\w\s]', '')
     
     lyrics = df['lyric'].tolist()
     lyrics = [generate_lyric_embeddings(lyric) for lyric in lyrics]
@@ -228,12 +234,19 @@ def main():
 
     test_dataset = TensorDataset(torch.FloatTensor(np.array(X_test)), torch.LongTensor(y_test))
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+
+    # hidden_size = 128
+    # num_epochs = 20
+    # lr = 0.01
+    hidden_size = 128
+    num_epochs = 100
+    lr = 0.01
     
     # Run on Validation Data - no need for predicted/true lables here
-    val_accuracy, train_losses, val_losses, accuracy_per_epoch, _, _ = train_and_test(train_loader, val_loader, input_size, num_classes, 128, 20, 0.01) 
+    val_accuracy, train_losses, val_losses, accuracy_per_epoch, _, _ = train_and_test(train_loader, val_loader, input_size, num_classes, hidden_size, num_epochs, lr) 
     
     # Run on Test Data - 3 parameters not relevent here for using testing data
-    test_accuracy, _, _, _, y_pred, y_true = train_and_test(train_loader, test_loader, input_size, num_classes, 128, 20, 0.01)
+    test_accuracy, _, _, _, y_pred, y_true = train_and_test(train_loader, test_loader, input_size, num_classes, hidden_size, num_epochs, lr)
 
     # Convert numerical notation back to string notation  
     y_pred_genre_names = label_encoder.inverse_transform(y_pred)
