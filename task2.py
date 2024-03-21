@@ -22,60 +22,17 @@ learning_rate = 0.001
 def extract_features(lyrics):
     num_words = len(lyrics.split())
     unique_words = len(set(lyrics.split()))
-    return [num_words, unique_words]
+    return [num_words, unique_words, len(lyrics)]
 
-def get_train_data(file_path):
+def get_tsv_data(file_path):
     df = pd.read_csv(file_path, sep='\t')
-    df['Lyrics'] = df['Lyrics'].str.lower().str.replace('[^\w\s]', '')
+    df['lyric'] = df['lyric'].str.lower().str.replace('[^\w\s]', '')
 
-    genres = df['Genre'].unique()
-    songs_per_genre_dict = {}
-    for genre in genres:
-        songs_per_genre_dict[genre] = df[df['Genre'] == genre]['Lyrics']
+    X = df['lyric'].tolist()
+    X = [extract_features(lyric) for lyric in X]
+    y = df['genre'].tolist()
 
-    X_train = []
-    y_train = []
-    X_val = []
-    y_val = []
-
-    for genre, songs in songs_per_genre_dict.items():
-
-        genre_features = [extract_features(lyric) for lyric in songs]
-
-        num_songs = len(songs)
-        num_train = int(num_songs * 0.9)
-        
-        # Assign songs to train and validation sets
-        X_train.extend(genre_features[:num_train])
-        y_train.extend([genre] * len(genre_features[:num_train]))
-        X_val.extend(genre_features[num_train:])
-        y_val.extend([genre] * len(genre_features[num_train:]))
-
-    return X_train, y_train, X_val, y_val
-
-def get_test_data(file_path):
-    genre_to_songs = {}
-    for genre in os.listdir(file_path):
-        genre_dir_path = os.path.join(file_path, genre)
-        genre = genre.lower()
-        files = os.listdir(genre_dir_path)
-        song_paths = [os.path.join(genre_dir_path, file) for file in files]
-        genre_to_songs[genre] = []
-        for song in song_paths:
-            with open(song, 'r') as f:
-                text = f.read()
-            text = re.sub(r'\s+', ' ', text).replace('[^\w\s]', '').lower().strip()
-            genre_to_songs[genre].append(text)
-
-    X_test = []
-    y_test = []
-
-    for genre, songs in genre_to_songs.items():
-        X_test.extend([extract_features(lyric) for lyric in songs])
-        y_test.extend([genre] * len(songs))
-    
-    return X_test, y_test
-
+    return X, y
 
 def create_dataloader(X, y, label_encoder, shuffle=True):
 
@@ -203,10 +160,12 @@ def calculate_f1(y_true, y_pred, label_encoder):
 
 
 def main():
-    train_file_path = 'genre_to_lyrics.tsv'
-    test_file_path = 'Test Songs/'
-    X_train, y_train, X_val, y_val = get_train_data(train_file_path)
-    X_test, y_test = get_test_data(test_file_path)
+    train_file_path = 'train.tsv'
+    val_file_path = 'validation.tsv'
+    test_file_path = 'test.tsv'
+    X_train, y_train = get_tsv_data(train_file_path)
+    X_val, y_val = get_tsv_data(val_file_path)
+    X_test, y_test = get_tsv_data(test_file_path)
 
     label_encoder = LabelEncoder()
     train_dataloader = create_dataloader(X_train, y_train, label_encoder)
