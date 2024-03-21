@@ -9,7 +9,7 @@ Simply run `python task1.py`.
 This will take hours to run, which is why we have provided the resulting tsvs. 
 
 ## Inbetween
-
+Run `python get_test_tsv.py` to convert 'Test Songs' directory to `test.tsv`
 
 ## Task 2
 
