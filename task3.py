@@ -1,20 +1,24 @@
-import csv
 import nltk
 import pandas as pd
 import torch
-import os
-import re
 import matplotlib.pyplot as plt
 import torch.nn as nn
 import torch.optim as optim
 import random
 from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
+import ssl
+try:
+    _create_unverified_https_context = ssl._create_unverified_context
+except AttributeError:
+    pass
+else:
+    ssl._create_default_https_context = _create_unverified_https_context
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
-from sklearn.model_selection import train_test_split, ParameterGrid
+from sklearn.model_selection import ParameterGrid
 from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import f1_score, classification_report
+from sklearn.metrics import classification_report
 from tabulate import tabulate
 import gensim.downloader as api
 import string
