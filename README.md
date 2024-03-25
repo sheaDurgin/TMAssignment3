@@ -12,12 +12,17 @@ This will take hours to run, which is why we have provided the resulting tsvs.
 Run `python get_test_tsv.py` to convert 'Test Songs' directory to `test.tsv`
 
 ## Task 2
-This task consist of using the scraped data from task 1, and use it to 
+This task consist of using the scraped data from Task 1, and use it to 
 train a feed-forward neural network model with simple features from the 
 songs like number of word, or unique words.
 
 The goal of the model is to predict the genre of the songs by their lyrics.
 
-Run `python task2.py` to train the model and also show the results.
+Run `python task2.py` to train the model and show the results.
 
 ## Task 3
+This task uses the scraped data from Task 1 and uses it to create word embeddings with 
+a pre-trained word2vec model to train a feed-forward neural network. 
+
+Run 'python task3.py' to show an epoch vs. validation loss graph and a table of f1 scores to genre. 
+There will also be an overall f1 score printed. 
