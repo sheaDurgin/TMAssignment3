@@ -6,11 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import LabelEncoder
 from torch.utils.data import TensorDataset, DataLoader
-
 from tqdm import tqdm
-import os
-import re
-
 from sklearn.metrics import f1_score, classification_report
 from tabulate import tabulate
 
@@ -18,6 +14,21 @@ from tabulate import tabulate
 batch_size = 128
 num_epochs = 100
 learning_rate = 0.001
+
+torch.manual_seed(42)
+class NeuralNet(nn.Module):
+    def __init__(self, input_size, hidden_size, output):
+        super(NeuralNet, self).__init__()
+        self.input_size = input_size
+        self.l1 = nn.Linear(input_size, hidden_size)
+        self.relu = nn.ReLU()
+        self.l2 = nn.Linear(hidden_size, output)
+
+    def forward(self, x):
+        out = self.l1(x)
+        out = self.relu(out)
+        out = self.l2(out)
+        return out
 
 def extract_features(lyrics):
     num_words = len(lyrics.split())
@@ -44,21 +55,6 @@ def create_dataloader(X, y, label_encoder, shuffle=True):
     dataloader = DataLoader(dataset, batch_size=batch_size)
 
     return dataloader
-
-torch.manual_seed(42)
-class NeuralNet(nn.Module):
-    def __init__(self, input_size, hidden_size, output):
-        super(NeuralNet, self).__init__()
-        self.input_size = input_size
-        self.l1 = nn.Linear(input_size, hidden_size)
-        self.relu = nn.ReLU()
-        self.l2 = nn.Linear(hidden_size, output)
-
-    def forward(self, x):
-        out = self.l1(x)
-        out = self.relu(out)
-        out = self.l2(out)
-        return out
     
 def train_model(model, train_dataloader, validation_dataloader):
 
@@ -117,7 +113,6 @@ def train_model(model, train_dataloader, validation_dataloader):
     plt.savefig('Task2_epoch_diagram.pdf')
     plt.show()
 
-
 def test_model(model, test_dataloader):
     model.eval()
     y_true = []
@@ -139,7 +134,6 @@ def test_model(model, test_dataloader):
     return y_true, y_pred
 
 def calculate_f1(y_true, y_pred, label_encoder):
-
     # Transform into string
     decoded_true_labels = label_encoder.inverse_transform(y_true)
     decoded_pred_labels = label_encoder.inverse_transform(y_pred)
