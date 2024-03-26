@@ -16,7 +16,6 @@ else:
     ssl._create_default_https_context = _create_unverified_https_context
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
-from sklearn.model_selection import ParameterGrid
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import classification_report
 from tabulate import tabulate
@@ -45,6 +44,19 @@ class FFNN(nn.Module):
         out = self.dropout2(out)
         out = self.fc3(out)
         return out
+    
+seed_value = 42
+random.seed(seed_value)
+np.random.seed(seed_value)
+torch.manual_seed(seed_value)
+
+label_encoder = LabelEncoder()
+
+hidden_size = 128
+num_epochs = 100
+lr = 0.01
+
+criterion = nn.CrossEntropyLoss()
 
 nltk.download('punkt')
 nltk.download('stopwords')
@@ -107,7 +119,9 @@ def generate_lyric_embeddings(lyrics):
 
 # Takes in val_loader or trainloader (val_loader for when val loss per epoch 
 # needs to be calculated)
-def train_model(train_loader, loader, model, criterion, optimizer, scheduler, num_epochs):
+def train_model(train_loader, loader, model):
+    optimizer = optim.Adam(model.parameters(), lr=lr)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
     train_losses = []
     val_losses = []
     accuracy_per_epoch = []
@@ -127,36 +141,15 @@ def train_model(train_loader, loader, model, criterion, optimizer, scheduler, nu
 
         scheduler.step()  
 
-
         epoch_train_loss = running_train_loss / len(train_loader.dataset)
         train_losses.append(epoch_train_loss)
 
-        accuracy, epoch_val_loss, y_pred, y_true = evaluate_model(loader, model, criterion)
+        accuracy, epoch_val_loss, _, _ = evaluate_model(loader, model, criterion)
         val_losses.append(epoch_val_loss)
         accuracy_per_epoch.append(accuracy)
-
-    return model, train_losses, val_losses, accuracy_per_epoch, y_pred, y_true
-
-
-# For both testing on validation and testing data 
-def train_and_test(train_loader, test_loader, input_size, num_classes, hidden_size, num_epochs, learning_rate):
-    seed_value = 42
-    random.seed(seed_value)
-    np.random.seed(seed_value)
-    torch.manual_seed(seed_value)
     
-    model = FFNN(input_size, hidden_size, num_classes)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=3, gamma=0.1)
-
-    trained_model, train_losses, val_losses, accuracy_per_epoch, y_pred, y_true = train_model(train_loader, test_loader, model, criterion, optimizer, scheduler, num_epochs)
-    
-    # Don't need other return values here
-    accuracy, _, _, _= evaluate_model(test_loader, trained_model, criterion)
-    
-    return accuracy, train_losses, val_losses, accuracy_per_epoch, y_pred, y_true
+    # Train loss validation loss per epoch diagram
+    plot_losses(train_losses, val_losses)
 
 
 # Function to see how model preforms with predictions
@@ -183,34 +176,8 @@ def evaluate_model(data_loader, model, criterion):
 
         accuracy = correct / total
         epoch_val_loss = running_val_loss / len(data_loader.dataset)
-
-    
-    return accuracy, epoch_val_loss, y_pred, y_true
-    
-
-# Permute over hyperparameter setups to determine best combination 
-def tune_hyperparameters(train_loader, val_loader, input_size, num_classes, param_grid):
-    seed_value = 42
-    random.seed(seed_value)
-    np.random.seed(seed_value)
-    torch.manual_seed(seed_value)
-    
-    best_accuracy = 0
-    best_params = {}
-
-    for params in ParameterGrid(param_grid):
-        learning_rate = params['learning_rate']
-        hidden_size = params['hidden_size']
-        num_epochs = params['num_epochs']
-
-        accuracy = train_and_test(train_loader, val_loader, input_size, num_classes, hidden_size, num_epochs, learning_rate)
         
-        if accuracy > best_accuracy:
-            best_accuracy = accuracy
-            best_params = params
-    
-    return best_accuracy, best_params
-
+    return accuracy, epoch_val_loss, y_pred, y_true
 
 def main():
     train_file_path = 'train.tsv'
@@ -223,7 +190,6 @@ def main():
     # Model parameters
     input_size = len(X_train[0])
     num_classes = len(np.unique(y_train)) 
-    label_encoder = LabelEncoder()
     y_train_encoded = label_encoder.fit_transform(y_train)
     y_val_encoded = label_encoder.fit_transform(y_val)
 
@@ -239,20 +205,11 @@ def main():
     test_dataset = TensorDataset(torch.FloatTensor(np.array(X_test)), torch.LongTensor(y_test))
     test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 
-    # hidden_size = 128
-    # num_epochs = 20
-    # lr = 0.01
-    hidden_size = 128
-    num_epochs = 100
-    lr = 0.01
-    
-    # Run on Validation Data - no need for predicted/true lables here
-    val_accuracy, train_losses, val_losses, accuracy_per_epoch, _, _ = train_and_test(train_loader, val_loader, input_size, num_classes, hidden_size, num_epochs, lr) 
-    
-    # Run on Test Data - 3 parameters not relevent here for using testing data
-    test_accuracy, _, _, _, y_pred, y_true = train_and_test(train_loader, test_loader, input_size, num_classes, hidden_size, num_epochs, lr)
+    model = FFNN(input_size, hidden_size, num_classes)
 
-    # Convert numerical notation back to string notation  
+    train_model(train_loader, val_loader, model)
+
+    _, _, y_pred, y_true = evaluate_model(test_loader, model, criterion)
     y_pred_genre_names = label_encoder.inverse_transform(y_pred)
     y_true_genre_names = label_encoder.inverse_transform(y_true)
 
@@ -270,26 +227,6 @@ def main():
     print(f'\nOverall f1 score: {overall_f1_score}\n')
     print(f'F1 Scores Per Genre')
     print(table)
-
-    # Train loss validation loss per epoch diagram
-    plot_losses(train_losses, val_losses)
-
-    # Hyperparamters to test
-    #param_grid = {
-    # 'learning_rate': [0.001, 0.01, 0.1],
-    # 'hidden_size': [64, 128, 256],
-    # 'num_epochs': [10, 20, 30]  
-    #}
-
-    # Hyperparameter tuning
-    #best_accuracy, best_params = tune_hyperparameters(train_loader, val_loader, input_size, num_classes, param_grid)
-    #print("Best validation accuracy:", best_accuracy)
-    #print("Best params:", best_params)
-
-    # {'hidden_size': 128, 'learning_rate': 0.01, 'num_epochs': 20}
-    # Slow so maybe just put in manually later 
-    
-    # accuracy = train_and_validate(train_loader, val_loader, input_size, num_classes, 128, 20, 0.01)
 
 def plot_losses(train_losses, val_losses):
     epochs = range(1, len(train_losses) + 1)
