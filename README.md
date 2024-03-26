@@ -1,5 +1,9 @@
 # TMAssignment3
 
+## Before
+Install the required libraries before attempting to run.  
+`pip install -r requirements.txt`  
+
 ## Task 1
 This task scrapes from lyrics.com, to get genre-to-lyrics pairs. 
 At the end it will create three files, train.tsv, val.tsv, test.tsv. 
