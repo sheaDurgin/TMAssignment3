@@ -6,7 +6,7 @@ Install the required libraries before attempting to run.
 
 ## Task 1
 This task scrapes from lyrics.com, to get genre-to-lyrics pairs. 
-At the end it will create two files, train.tsv, val.tsv. 
+At the end it will create two files, train.tsv, validation.tsv. 
 This data is a 90:10 split of the total data scraped. 
 
 Simply run `python task1.py`. 
